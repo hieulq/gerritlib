@@ -20,6 +20,7 @@ import select
 import six.moves
 import threading
 import time
+import os
 
 import paramiko
 
@@ -344,13 +345,18 @@ class Gerrit(object):
         return data
 
     def _ssh(self, command):
+        conf = paramiko.SSHConfig()
+        conf.parse(open(os.path.expanduser('~/.ssh/config')))
+        host = conf.lookup(self.hostname)
         client = paramiko.SSHClient()
         client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.WarningPolicy())
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.log.debug("======= PC: " + host.get('proxycommand'))
         client.connect(self.hostname,
                        username=self.username,
                        port=self.port,
-                       key_filename=self.keyfile)
+                       key_filename=self.keyfile,
+                       sock=paramiko.ProxyCommand(host.get('proxycommand')))
 
         self.log.debug("SSH command:\n%s" % command)
         stdin, stdout, stderr = client.exec_command(command)
