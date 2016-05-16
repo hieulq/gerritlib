@@ -86,7 +86,7 @@ class GerritWatcher(threading.Thread):
         def _make_client():
             client = paramiko.SSHClient()
             client.load_system_host_keys()
-            client.set_missing_host_key_policy(paramiko.WarningPolicy())
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             return client
 
         def _attempt_gen(connection_attempts, retry_delay):
@@ -111,10 +111,15 @@ class GerritWatcher(threading.Thread):
             client = None
             try:
                 client = _make_client()
+                conf = paramiko.SSHConfig()
+                conf.parse(open(os.path.expanduser('~/.ssh/config')))
+                host = conf.lookup(self.hostname)
+                self.log.debug("======= PC:" + host.get('proxycommand'))
                 client.connect(self.hostname,
                                username=self.username,
                                port=self.port,
-                               key_filename=self.keyfile)
+                               key_filename=self.keyfile,
+                               sock=paramiko.ProxyCommand(host.get('proxycommand')))
                 return client
             except (IOError, paramiko.SSHException) as e:
                 self.log.exception("Exception connecting to %s:%s",
@@ -351,7 +356,7 @@ class Gerrit(object):
         client = paramiko.SSHClient()
         client.load_system_host_keys()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.log.debug("======= PC: " + host.get('proxycommand'))
+        self.log.debug("======= PC:" + host.get('proxycommand'))
         client.connect(self.hostname,
                        username=self.username,
                        port=self.port,
